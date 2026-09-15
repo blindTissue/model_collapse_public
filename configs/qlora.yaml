@@ -1,0 +1,85 @@
+# Multi-model collapse experiment, 8B-class models with QLoRA.
+#
+# Three ~7-8B base models, 4-bit NF4 training with rank-64 adapters.
+# Generation 0 uses 200k C4 examples; each family generates 20k examples
+# per synthetic round. Recovery negates the effective LoRA update.
+
+model:
+  dtype: "bfloat16"
+
+models:
+  - name: "meta-llama/Llama-3.1-8B"
+    short_name: "llama"
+  - name: "allenai/Olmo-3-1025-7B"
+    short_name: "olmo"
+  - name: "Qwen/Qwen3-8B-Base"
+    short_name: "qwen"
+
+dataset:
+  # At most 200k * 512 tokens per initialization epoch before filtering.
+  name: "allenai/c4"
+  config: "en"
+  train_size: 200000
+  val_size: 10000
+  test_size: 10000
+  min_chars: 200
+  seed: 42
+
+training:
+  num_epochs: 1
+  per_device_batch_size: 4
+  gradient_accumulation_steps: 8      # effective batch 32
+  learning_rate: 1.0e-4               # higher LR is appropriate for LoRA
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.03
+  max_seq_length: 512                 # matches 1.5B variant; 4x faster than 1024
+  gradient_checkpointing: true        # required: 8B + bs=4 still spills 48GB w/o it
+  bf16: true
+  save_strategy: "epoch"
+  logging_steps: 50
+  weight_decay: 0.0                   # standard for LoRA
+  max_grad_norm: 1.0
+  torch_compile: false                # PEFT + 4bit + compile is fragile
+  attn_implementation: "sdpa"         # set to "flash_attention_2" if installed
+
+qlora:
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_compute_dtype: "bfloat16"
+  lora_r: 64
+  lora_alpha: 128
+  lora_dropout: 0.05
+  lora_bias: "none"
+  # Per-family LoRA target modules. "all-linear" works on Llama / Qwen3 /
+  # OLMo-3 since they all use vanilla decoder-block linears. Override here
+  # if a family ever needs a custom target set.
+  target_modules:
+    llama: "all-linear"
+    olmo:  "all-linear"
+    qwen:  "all-linear"
+
+generation:
+  prompt_length: 64
+  max_new_tokens: 448                 # max_seq_length - prompt_length
+  temperature: 0.7
+  top_p: 0.9
+  repetition_penalty: 1.2
+  num_continuations: 20000            # per family, per generation (matches 1.5B)
+  vllm_tensor_parallel: 1
+  vllm_gpu_memory_utilization: 0.90
+  vllm_max_model_len: 512
+  vllm_dtype: "bfloat16"
+  generation_batch_size: 1024
+
+collapse:
+  num_generations: 9
+
+recovery:
+  alpha_values: [0.25, 0.5, 0.75, 1.0]
+
+paths:
+  output_dir: "outputs"
+  data_dir: "data"
+  models_dir: "models"
+  results_dir: "results"

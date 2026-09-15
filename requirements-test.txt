@@ -1,0 +1,10 @@
+# CPU recovery/evaluation tests; no vLLM or bitsandbytes required.
+torch==2.10.0
+transformers==4.57.6
+datasets==4.8.4
+accelerate==1.13.0
+peft==0.19.1
+safetensors==0.7.0
+PyYAML==6.0.3
+numpy==2.2.6
+tqdm==4.67.3
