@@ -35,7 +35,7 @@ theta_recovered = theta_current - alpha * (theta_future - theta_current)
 merged checkpoint. The implementation scales the adapter's B matrices by
 `-alpha` before merging, retaining the adapter's LoRA scaling factor.
 
-**Evaluation.** Perplexity is the mean of per-example perplexities on a held-out
+**Evaluation.** Perplexity measures mean per-example perplexities on a held-out
 real-text split. Diversity metrics, including distinct-n, vocabulary size,
 MTLD, and Yule's K, are computed after removing prompt prefixes.
 
